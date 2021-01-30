@@ -12,6 +12,7 @@ library(data.table)
 library(DT)
 library(plotly)
 library(dplyr)
+library(knitr)
 
 # Define server logic required to draw a histogram
 shinyServer(function(input, output) {
@@ -47,11 +48,33 @@ shinyServer(function(input, output) {
     })
     
     
+    
+    
     output$qtlTable <- renderDataTable({
-        datatable(qtldbfile())
+        #if (!is.null(input$file1$datapath)) {
+            return(datatable(qtldbfile()))
+        # } else {
+        #     return(paste("Please, upload the file"))
+        # }
     })
 
     
+    qtldbsite <- a("Animal QTL db;", href = "https://www.animalgenome.org/cgi-bin/QTLdb/index", target = "_blank")
+    
+    output$instructions <- renderUI({
+        if (is.null(input$file1$datapath)) {
+            box(title = "Instructions for users", solidHeader = TRUE, collapsible = TRUE, width = 6, 
+                #HTML(markdown::markdownToHTML(knit('Documents/easyQTL/instructions.Rmd', quiet = TRUE)))
+                HTML(paste("1. Access", qtldbsite),
+                     '<br>',
+                    paste("2. click on the desired specie;",
+                          "3. Click on 'All data by bp (choose the genome version)' - bed format;",
+                          "4. Click on 'I have read and endorse the terms and conditions' button to download the file;",
+                          "5. Uncompress the gz file.",
+                          sep = "<br/>"))
+            )
+        }
+    })
     
     qtlList <- reactive({
         Chr <- casefold(input$chromosome, upper = TRUE)
@@ -66,13 +89,24 @@ shinyServer(function(input, output) {
     })
     
     
+    output$warning <- renderText({
+        if (is.null(input$file1$datapath)) {
+            return(paste("Please upload a QTL file"))
+        }
+    })
     
     output$showQTLlist <- renderDataTable({
-        datatable(qtlList(), colnames = c("Chr", "Start Position", "End Position", "QTL (ID)"))
+        # validate(
+        #     need(!is.null(input$file1$datapath), "Please select a data set")
+        # )
+        if (!is.null(input$file1$datapath)) {
+            datatable(qtlList(), colnames = c("Chr", "Start Position", "End Position", "QTL (ID)"))
+        }
     })
         
         
     output$qtlListFinal <- downloadHandler(
+        contentType = "csv",
         filename = function() {
             paste("QTL List", "csv", sep = ".")
         },
@@ -87,10 +121,12 @@ shinyServer(function(input, output) {
     output$tb <- renderUI({
         tabsetPanel(
             tabPanel(title = "Raw data",
-                     dataTableOutput("qtlTable")
+                     dataTableOutput(outputId = "qtlTable"),
+                     uiOutput(outputId = "instructions")
                      ),
             tabPanel(title = "QTL list",
                      dataTableOutput("showQTLlist"),
+                     verbatimTextOutput(outputId = "warning"),
                      downloadButton("qtlListFinal", "Download the table")
                      )
             )
